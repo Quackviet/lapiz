@@ -1,32 +1,441 @@
-const nowDate=new Date(),state={year:nowDate.getFullYear(),month:nowDate.getMonth(),day:nowDate.getDate(),view:'month'};
-let events=[];
-const months=['THÁNG 1','THÁNG 2','THÁNG 3','THÁNG 4','THÁNG 5','THÁNG 6','THÁNG 7','THÁNG 8','THÁNG 9','THÁNG 10','THÁNG 11','THÁNG 12'];
-const vietnamHolidays={'01-01':'Tết Dương lịch','02-03':'Ngày thành lập Đảng Cộng sản Việt Nam','02-27':'Ngày Thầy thuốc Việt Nam','03-08':'Ngày Quốc tế Phụ nữ','03-26':'Ngày thành lập Đoàn TNCS Hồ Chí Minh','04-30':'Ngày Giải phóng miền Nam','05-01':'Ngày Quốc tế Lao động','05-19':'Ngày sinh Chủ tịch Hồ Chí Minh','06-01':'Ngày Quốc tế Thiếu nhi','06-28':'Ngày Gia đình Việt Nam','07-27':'Ngày Thương binh Liệt sĩ','08-19':'Ngày Cách mạng tháng Tám','09-02':'Quốc khánh Việt Nam','10-01':'Ngày Quốc tế Người cao tuổi','10-20':'Ngày Phụ nữ Việt Nam','11-20':'Ngày Nhà giáo Việt Nam','12-22':'Ngày thành lập Quân đội Nhân dân Việt Nam'};
-const lunarHolidays2026={'2026-02-10':'Ngày ông Táo chầu trời','2026-02-17':'Tết Nguyên Đán','2026-02-18':'Tết Nguyên Đán','2026-02-19':'Tết Nguyên Đán','2026-02-20':'Tết Nguyên Đán','2026-02-21':'Tết Nguyên Đán','2026-03-03':'Tết Nguyên Tiêu','2026-04-19':'Tết Hàn Thực','2026-04-26':'Giỗ Tổ Hùng Vương','2026-05-31':'Lễ Phật Đản','2026-06-19':'Tết Đoan Ngọ','2026-08-27':'Lễ Vu Lan','2026-09-25':'Tết Trung Thu','2026-10-19':'Tết Trùng Cửu','2026-11-20':'Giỗ tổ nghề sân khấu'};
-function holidayFor(key){const [,month,day]=key.split('-');return vietnamHolidays[`${month}-${day}`]||lunarHolidays2026[key]||''}
-const weekdays=['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'];
-const colors=['mint','pink','purple'],grid=document.querySelector('#calendar-grid'),monthView=document.querySelector('#month-view'),weekView=document.querySelector('#week-view'),dayView=document.querySelector('#day-view'),agenda=document.querySelector('#agenda-view'),dialog=document.querySelector('#event-dialog');
-const addButton=document.querySelector('#add-event'),filterButton=document.querySelector('#filter-button'),headerActions=document.createElement('div');headerActions.className='header-actions';filterButton.before(headerActions);headerActions.append(addButton,filterButton);
-const viewTabs=document.querySelector('.view-tabs');
-const utilityView=document.createElement('section');utilityView.id='utility-view';utilityView.className='utility-view hidden';agenda.after(utilityView);const navButtons=[...document.querySelectorAll('.bottom-nav .nav-item')];
-const pad=n=>String(n).padStart(2,'0'),dateKey=()=>`${state.year}-${pad(state.month+1)}-${pad(state.day)}`,fromKey=k=>new Date(`${k}T00:00:00`),keyOf=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const safe=s=>s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-function emoji(title,desc){const t=`${title} ${desc}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),rules=[[/hop|meeting|gap|khach hang|client/,'👥'],[/email|thu|mail/,'📨'],[/hoc|bai tap|on thi|study|doc sach/,'📚'],[/an |trua|toi|sang|cafe|ca phe|nha hang/,'🍽️'],[/tap|gym|chay|yoga|the thao|bong/,'🏃'],[/goi|dien thoai|call/,'📞'],[/mua|sieu thi|shopping|dat hang/,'🛒'],[/sinh nhat|birthday|tiec/,'🎂'],[/du lich|di choi|may bay|ve xe/,'✈️'],[/bac si|kham|benh vien|nha khoa/,'🩺'],[/code|lap trinh|bug|website|du an/,'💻'],[/thanh toan|hoa don|tien|ngan hang/,'💳'],[/deadline|bao cao|nop|report/,'📌']];return(rules.find(([r])=>r.test(t))||[,'✨'])[1]}
-const forDate=date=>events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
-function eventCards(list){return list.length?list.map(e=>`<article class="event"><time class="event-time">${e.time}</time><span class="event-bar ${e.color}"></span><div><h3>${safe(e.title)}</h3><p>${safe(e.description||'Không có mô tả.')}</p></div><span class="event-icon">${e.icon}</span></article>`).join(''):'<p class="empty">Chưa có công việc nào. Nhấn dấu + để thêm.</p>'}
-function renderCalendar(){document.querySelector('#calendar-title').textContent=`${months[state.month]}, ${state.year}`;document.querySelector('h1').textContent=`${months[state.month].replace('THÁNG','Tháng')}, ${state.year}`;const leading=(new Date(state.year,state.month,1).getDay()+6)%7,total=new Date(state.year,state.month+1,0).getDate(),prev=new Date(state.year,state.month,0).getDate();grid.innerHTML='';for(let i=0;i<42;i++){const day=i-leading+1,inMonth=day>0&&day<=total,shown=inMonth?day:day<=0?prev+day:day-total,key=inMonth?`${state.year}-${pad(state.month+1)}-${pad(day)}`:'',items=inMonth?forDate(key):[],button=document.createElement('button');button.className=`date ${inMonth?'':'muted'} ${inMonth&&day===state.day?'selected':''}`;button.innerHTML=`<span>${shown}</span><i class="event-markers">${items.slice(0,3).map(e=>`<b class="${e.color}"></b>`).join('')}</i>`;if(inMonth)button.onclick=()=>select(key);grid.append(button)}}
-function markHolidays(){grid.querySelectorAll('.date:not(.muted)').forEach(button=>{const day=pad(Number(button.querySelector('span').textContent)),key=`${state.year}-${pad(state.month+1)}-${day}`,holiday=holidayFor(key);if(holiday){button.classList.add('holiday');button.title=holiday;button.querySelector('.event-markers').insertAdjacentHTML('beforeend','<b class="holiday-marker">✨</b>')}})}
-function renderAgenda(){const d=fromKey(dateKey()),holiday=holidayFor(dateKey());document.querySelector('#agenda-date').textContent=`${weekdays[d.getDay()].toUpperCase()}, ${pad(state.day)} ${months[state.month]}, ${state.year}`;document.querySelector('#events').innerHTML=`${holiday?`<article class="holiday-card">✨ <div><strong>${holiday}</strong><small>Ngày đặc biệt tại Việt Nam</small></div></article>`:''}${eventCards(forDate(dateKey()))}`}
-function renderWeek(){const start=fromKey(dateKey());start.setDate(start.getDate()-((start.getDay()+6)%7));const days=Array.from({length:7},(_,i)=>{const d=new Date(start);d.setDate(d.getDate()+i);return d});const activeDays=days.map((date,index)=>({date,index,items:forDate(keyOf(date))})).filter(item=>item.items.length);weekView.innerHTML=`<div class="week-header"><strong>Tuần này</strong><span>${pad(days[0].getDate())}/${pad(days[0].getMonth()+1)} — ${pad(days[6].getDate())}/${pad(days[6].getMonth()+1)}</span></div><div class="week-days">${days.map((d,i)=>`<button class="week-day ${keyOf(d)===dateKey()?'today':''}" data-date="${keyOf(d)}">${['T2','T3','T4','T5','T6','T7','CN'][i]}<b>${pad(d.getDate())}</b></button>`).join('')}</div><div class="week-schedule">${activeDays.length?activeDays.map(({date,index,items})=>{const k=keyOf(date);return `<section class="week-column"><button data-date="${k}"><strong>${['T2','T3','T4','T5','T6','T7','CN'][index]} / ${pad(date.getDate())}</strong></button>${items.map(e=>`<div class="week-event ${e.color}"><span>${e.time}</span>${e.icon} ${safe(e.title)}</div>`).join('')}</section>`}).join(''):'<p class="empty">Tuần này chưa có công việc.</p>'}</div>`;weekView.querySelectorAll('[data-date]').forEach(el=>el.onclick=()=>select(el.dataset.date))}
-function renderDay(){const items=forDate(dateKey()),hours=Array.from({length:13},(_,i)=>i+8),rows=hours.map(h=>{const matches=items.filter(e=>Number(e.time.slice(0,2))===h);return `<div class="timeline-row"><time>${pad(h)}:00</time><div class="timeline-slot">${matches.map(e=>`<article class="timeline-event ${e.color}"><span>${e.time}</span><strong>${e.icon} ${safe(e.title)}</strong><small>${safe(e.description||'Không có mô tả.')}</small></article>`).join('')}</div></div>`}).join('');dayView.innerHTML=`<div class="day-hero">${weekdays[fromKey(dateKey()).getDay()]}, ${pad(state.day)} ${months[state.month]}<strong>Lịch theo thời gian</strong></div><div class="timeline">${items.length?rows:'<p class="empty">Chưa có công việc trong ngày này.</p>'}</div>`}
-function statusOf(event){if(event.done)return'completed';return new Date(`${event.date}T${event.time}`)<new Date()?'overdue':'pending'}
-function dailyList(title,items,status){return `<section class="daily-group"><h3><i class="${status}"></i>${title}<span>${items.length}</span></h3>${items.length?items.map(event=>`<article><span>${event.icon}</span><div><strong>${safe(event.title)}</strong><small>${event.time}</small></div></article>`).join(''):'<p>Không có công việc.</p>'}</section>`}
-function streakCount(){let day=fromKey(dateKey()),count=0;for(let index=0;index<365;index++){const list=forDate(keyOf(day));if(!list.length||list.some(event=>!event.done))break;count++;day.setDate(day.getDate()-1)}return count}
-function renderProfile(){const today=forDate(dateKey()),completed=today.filter(event=>statusOf(event)==='completed'),pending=today.filter(event=>statusOf(event)==='pending'),overdue=today.filter(event=>statusOf(event)==='overdue'),streak=streakCount();utilityView.innerHTML=`<div class="profile-card"><div class="profile-avatar">NT</div><div><h2>Người dùng</h2><p>Công việc ngày ${pad(state.day)}/${pad(state.month+1)}</p></div></div><section class="streak-card"><span>🔥</span><div><strong>${streak} ngày chuỗi</strong><p>Hoàn thành tất cả việc trong ngày để duy trì chuỗi.</p></div></section><div class="daily-tasks">${dailyList('Đã hoàn thành',completed,'completed')}${dailyList('Chưa hoàn thành',pending,'pending')}${dailyList('Bị trễ hẹn',overdue,'overdue')}</div>`}
-function statsEffect(percent,total){document.querySelector('.mood-effect')?.remove();if(!total)return;const effect=document.createElement('div');effect.className='mood-effect';if(percent>50){effect.classList.add('tenor-effect');effect.innerHTML='<div class="tenor-gif-embed" data-postid="27343800" data-share-method="host" data-aspect-ratio="1.78771" data-width="100%"><a href="https://tenor.com/view/confetti-gif-27343800">Confetti Sticker</a></div>';document.body.append(effect);const tenorScript=document.createElement('script');tenorScript.src='https://tenor.com/embed.js';tenorScript.async=true;document.body.append(tenorScript)}else{effect.classList.add('angry');effect.textContent='😠';document.body.append(effect)}setTimeout(()=>effect.remove(),4800)}
-function renderStats(date=dateKey()){const items=forDate(date),completed=items.filter(event=>event.done).length,overdue=0,pending=items.length-completed,total=items.length,completePercent=total?Math.round(completed/total*100):0,pendingPercent=total?100-completePercent:0,overduePercent=0,pie=total?`conic-gradient(#55d0aa 0 ${completePercent}%,#9b7cf7 ${completePercent}% 100%)`:'#e8ecf1';utilityView.innerHTML=`<div class="utility-heading"><p class="eyebrow">THỐNG KÊ TRONG NGÀY</p><h2>Tiến độ công việc</h2></div><label class="stats-date">Chọn ngày <input id="stats-date" type="date" value="${date}"></label><section class="pie-card"><div class="pie-chart" style="background:${pie}"><span>${total}</span><small>công việc</small></div><div class="pie-legend"><p><i class="complete"></i>Đã hoàn thành <b>${completePercent}%</b></p><p><i class="pending"></i>Chưa hoàn thành <b>${pendingPercent}%</b></p><p><i class="overdue"></i>Bị trễ <b>${overduePercent}%</b></p></div></section>`;document.querySelector('#stats-date').onchange=event=>renderStats(event.target.value);statsEffect(completePercent,total)}
-function renderUtility(kind){navButtons.forEach((button,index)=>button.classList.toggle('selected',index==={tasks:1,stats:2,profile:3}[kind]));viewTabs.classList.toggle('hidden',kind==='stats'||kind==='profile');utilityView.classList.remove('hidden');monthView.classList.add('hidden');weekView.classList.add('hidden');dayView.classList.add('hidden');agenda.classList.add('hidden');if(kind==='stats'){renderStats();return}if(kind==='profile'){renderProfile();return}if(kind==='tasks'){const sorted=[...events].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));utilityView.innerHTML=`<div class="utility-heading"><p class="eyebrow">QUẢN LÝ CÁ NHÂN</p><h2>Công việc</h2><span>${sorted.filter(event=>event.done).length}/${sorted.length} hoàn thành</span></div><div class="task-list">${sorted.length?sorted.map((event,index)=>`<button class="task-card ${event.done?'done':''}" data-task="${events.indexOf(event)}"><i>${event.done?'✓':''}</i><div><strong>${event.icon} ${safe(event.title)}</strong><small>${event.time} · ${event.date.split('-').reverse().join('/')}</small></div></button>`).join(''):'<p class="empty">Chưa có công việc. Hãy thêm từ mục Lịch.</p>'}</div>`;utilityView.querySelectorAll('[data-task]').forEach(button=>button.onclick=()=>{events[Number(button.dataset.task)].done=!events[Number(button.dataset.task)].done;renderUtility('tasks')})}}
-function setView(view){state.view=view;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));monthView.classList.toggle('hidden',view!=='month');weekView.classList.toggle('hidden',view!=='week');dayView.classList.toggle('hidden',view!=='day');agenda.classList.toggle('hidden',view==='week'||view==='day');if(view==='list'){document.querySelector('#agenda-heading').textContent='Tất cả công việc';document.querySelector('#agenda-date').textContent=`DANH SÁCH ${months[state.month]}`;document.querySelector('#events').innerHTML=eventCards(events.filter(e=>e.date.startsWith(`${state.year}-${pad(state.month+1)}`)).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)))}else{document.querySelector('#agenda-heading').textContent='Lịch hôm nay';renderAgenda()}if(view==='week')renderWeek();if(view==='day')renderDay()}
-function select(key){const d=fromKey(key);state.year=d.getFullYear();state.month=d.getMonth();state.day=d.getDate();renderAll()}
-function renderAll(){renderCalendar();markHolidays();renderAgenda();renderWeek();renderDay();setView(state.view)}
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{utilityView.classList.add('hidden');viewTabs.classList.remove('hidden');setView(t.dataset.view)});document.querySelector('#previous').onclick=()=>{if(--state.month<0){state.month=11;state.year--}state.day=1;renderAll()};document.querySelector('#next').onclick=()=>{if(++state.month>11){state.month=0;state.year++}state.day=1;renderAll()};addButton.onclick=()=>{document.querySelector('#event-date').value=dateKey();dialog.showModal()};document.querySelector('#close-dialog').onclick=()=>dialog.close();document.querySelector('#event-form').onsubmit=e=>{e.preventDefault();const title=document.querySelector('#event-name').value.trim(),date=document.querySelector('#event-date').value,time=document.querySelector('#event-time').value,description=document.querySelector('#event-description').value.trim();if(!title||!date||!time)return;events.push({title,date,time,description,icon:emoji(title,description),color:colors[events.length%colors.length]});dialog.close();e.target.reset();select(date)};navButtons[0].onclick=()=>{utilityView.classList.add('hidden');viewTabs.classList.remove('hidden');setView(state.view);navButtons.forEach((button,index)=>button.classList.toggle('selected',index===0))};navButtons[1].onclick=()=>renderUtility('tasks');navButtons[2].onclick=()=>renderUtility('stats');navButtons[3].onclick=()=>renderUtility('profile');renderAll();
+const nowDate = new Date(),
+  state = { year: nowDate.getFullYear(), month: nowDate.getMonth(), day: nowDate.getDate(), view: 'month' };
+let events = [];
+const months = ['THÁNG 1', 'THÁNG 2', 'THÁNG 3', 'THÁNG 4', 'THÁNG 5', 'THÁNG 6', 'THÁNG 7', 'THÁNG 8', 'THÁNG 9', 'THÁNG 10', 'THÁNG 11', 'THÁNG 12'];
+const vietnamHolidays = {
+  '01-01': 'Tết Dương lịch',
+  '02-03': 'Ngày thành lập Đảng Cộng sản Việt Nam',
+  '02-27': 'Ngày Thầy thuốc Việt Nam',
+  '03-08': 'Ngày Quốc tế Phụ nữ',
+  '03-26': 'Ngày thành lập Đoàn TNCS Hồ Chí Minh',
+  '04-30': 'Ngày Giải phóng miền Nam',
+  '05-01': 'Ngày Quốc tế Lao động',
+  '05-19': 'Ngày sinh Chủ tịch Hồ Chí Minh',
+  '06-01': 'Ngày Quốc tế Thiếu nhi',
+  '06-28': 'Ngày Gia đình Việt Nam',
+  '07-27': 'Ngày Thương binh Liệt sĩ',
+  '08-19': 'Ngày Cách mạng tháng Tám',
+  '09-02': 'Quốc khánh Việt Nam',
+  '10-01': 'Ngày Quốc tế Người cao tuổi',
+  '10-20': 'Ngày Phụ nữ Việt Nam',
+  '11-20': 'Ngày Nhà giáo Việt Nam',
+  '12-22': 'Ngày thành lập Quân đội Nhân dân Việt Nam'
+};
+const lunarHolidays2026 = {
+  '2026-02-10': 'Ngày ông Táo chầu trời',
+  '2026-02-17': 'Tết Nguyên Đán',
+  '2026-02-18': 'Tết Nguyên Đán',
+  '2026-02-19': 'Tết Nguyên Đán',
+  '2026-02-20': 'Tết Nguyên Đán',
+  '2026-02-21': 'Tết Nguyên Đán',
+  '2026-03-03': 'Tết Nguyên Tiêu',
+  '2026-04-19': 'Tết Hàn Thực',
+  '2026-04-26': 'Giỗ Tổ Hùng Vương',
+  '2026-05-31': 'Lễ Phật Đản',
+  '2026-06-19': 'Tết Đoan Ngọ',
+  '2026-08-27': 'Lễ Vu Lan',
+  '2026-09-25': 'Tết Trung Thu',
+  '2026-10-19': 'Tết Trùng Cửu',
+  '2026-11-20': 'Giỗ tổ nghề sân khấu'
+};
+
+function holidayFor(key) {
+  const [, month, day] = key.split('-');
+  return vietnamHolidays[`${month}-${day}`] || lunarHolidays2026[key] || '';
+}
+
+const weekdays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+const colors = ['mint', 'pink', 'purple'],
+  grid = document.querySelector('#calendar-grid'),
+  monthView = document.querySelector('#month-view'),
+  weekView = document.querySelector('#week-view'),
+  dayView = document.querySelector('#day-view'),
+  agenda = document.querySelector('#agenda-view'),
+  dialog = document.querySelector('#event-dialog');
+const addButton = document.querySelector('#add-event'),
+  filterButton = document.querySelector('#filter-button'),
+  headerActions = document.createElement('div');
+headerActions.className = 'header-actions';
+filterButton.before(headerActions);
+headerActions.append(addButton, filterButton);
+const viewTabs = document.querySelector('.view-tabs');
+const utilityView = document.createElement('section');
+utilityView.id = 'utility-view';
+utilityView.className = 'utility-view hidden';
+agenda.after(utilityView);
+const navButtons = [...document.querySelectorAll('.bottom-nav .nav-item')];
+
+const pad = n => String(n).padStart(2, '0'),
+  dateKey = () => `${state.year}-${pad(state.month + 1)}-${pad(state.day)}`,
+  fromKey = k => new Date(`${k}T00:00:00`),
+  keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const safe = s => s.replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+
+function emoji(title, desc) {
+  const t = `${title} ${desc}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+    rules = [
+      [/hop|meeting|gap|khach hang|client/, '👥'],
+      [/email|thu|mail/, '📨'],
+      [/hoc|bai tap|on thi|study|doc sach/, '📚'],
+      [/an |trua|toi|sang|cafe|ca phe|nha hang/, '🍽️'],
+      [/tap|gym|chay|yoga|the thao|bong/, '🏃'],
+      [/goi|dien thoai|call/, '📞'],
+      [/mua|sieu thi|shopping|dat hang/, '🛒'],
+      [/sinh nhat|birthday|tiec/, '🎂'],
+      [/du lich|di choi|may bay|ve xe/, '✈️'],
+      [/bac si|kham|benh vien|nha khoa/, '🩺'],
+      [/code|lap trinh|bug|website|du an/, '💻'],
+      [/thanh toan|hoa don|tien|ngan hang/, '💳'],
+      [/deadline|bao cao|nop|report/, '📌']
+    ];
+  return (rules.find(([r]) => r.test(t)) || [, '✨'])[1];
+}
+
+const forDate = date => events.filter(e => e.date === date).sort((a, b) => a.time.localeCompare(b.time));
+
+function eventCards(list) {
+  return list.length
+    ? list
+        .map(
+          e =>
+            `<article class="event"><time class="event-time">${e.time}</time><span class="event-bar ${e.color}"></span><div><h3>${safe(
+              e.title
+            )}</h3><p>${safe(e.description || 'Không có mô tả.')}</p></div><span class="event-icon">${e.icon}</span></article>`
+        )
+        .join('')
+    : '<p class="empty">Chưa có công việc nào. Nhấn dấu + để thêm.</p>';
+}
+
+function renderCalendar() {
+  document.querySelector('#calendar-title').textContent = `${months[state.month]}, ${state.year}`;
+  document.querySelector('h1').textContent = `${months[state.month].replace('THÁNG', 'Tháng')}, ${state.year}`;
+  const leading = (new Date(state.year, state.month, 1).getDay() + 6) % 7,
+    total = new Date(state.year, state.month + 1, 0).getDate(),
+    prev = new Date(state.year, state.month, 0).getDate();
+  grid.innerHTML = '';
+  for (let i = 0; i < 42; i++) {
+    const day = i - leading + 1,
+      inMonth = day > 0 && day <= total,
+      shown = inMonth ? day : day <= 0 ? prev + day : day - total,
+      key = inMonth ? `${state.year}-${pad(state.month + 1)}-${pad(day)}` : '',
+      items = inMonth ? forDate(key) : [],
+      button = document.createElement('button');
+    button.className = `date ${inMonth ? '' : 'muted'} ${inMonth && day === state.day ? 'selected' : ''}`;
+    button.innerHTML = `<span>${shown}</span><i class="event-markers">${items
+      .slice(0, 3)
+      .map(e => `<b class="${e.color}"></b>`)
+      .join('')}</i>`;
+    if (inMonth) button.onclick = () => select(key);
+    grid.append(button);
+  }
+}
+
+function markHolidays() {
+  grid.querySelectorAll('.date:not(.muted)').forEach(button => {
+    const day = pad(Number(button.querySelector('span').textContent)),
+      key = `${state.year}-${pad(state.month + 1)}-${day}`,
+      holiday = holidayFor(key);
+    if (holiday) {
+      button.classList.add('holiday');
+      button.title = holiday;
+      button.querySelector('.event-markers').insertAdjacentHTML('beforeend', '<b class="holiday-marker">✨</b>');
+    }
+  });
+}
+
+function renderAgenda() {
+  const d = fromKey(dateKey()),
+    holiday = holidayFor(dateKey());
+  document.querySelector('#agenda-date').textContent = `${weekdays[d.getDay()].toUpperCase()}, ${pad(state.day)} ${months[state.month]}, ${state.year}`;
+  document.querySelector('#events').innerHTML = `${
+    holiday ? `<article class="holiday-card">✨ <div><strong>${holiday}</strong><small>Ngày đặc biệt tại Việt Nam</small></div></article>` : ''
+  }${eventCards(forDate(dateKey()))}`;
+}
+
+function renderWeek() {
+  const start = fromKey(dateKey());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const activeDays = days.map((date, index) => ({ date, index, items: forDate(keyOf(date)) })).filter(item => item.items.length);
+  weekView.innerHTML = `<div class="week-header"><strong>Tuần này</strong><span>${pad(days[0].getDate())}/${pad(days[0].getMonth() + 1)} — ${pad(
+    days[6].getDate()
+  )}/${pad(days[6].getMonth() + 1)}</span></div><div class="week-days">${days
+    .map(
+      (d, i) =>
+        `<button class="week-day ${keyOf(d) === dateKey() ? 'today' : ''}" data-date="${keyOf(d)}">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][i]}<b>${pad(
+          d.getDate()
+        )}</b></button>`
+    )
+    .join('')}</div><div class="week-schedule">${
+    activeDays.length
+      ? activeDays
+          .map(({ date, index, items }) => {
+            const k = keyOf(date);
+            return `<section class="week-column"><button data-date="${k}"><strong>${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][index]} / ${pad(
+              date.getDate()
+            )}</strong></button>${items
+              .map(e => `<div class="week-event ${e.color}"><span>${e.time}</span>${e.icon} ${safe(e.title)}</div>`)
+              .join('')}</section>`;
+          })
+          .join('')
+      : '<p class="empty">Tuần này chưa có công việc.</p>'
+  }</div>`;
+  weekView.querySelectorAll('[data-date]').forEach(el => (el.onclick = () => select(el.dataset.date)));
+}
+
+function renderDay() {
+  const items = forDate(dateKey()),
+    hours = Array.from({ length: 13 }, (_, i) => i + 8),
+    rows = hours
+      .map(h => {
+        const matches = items.filter(e => Number(e.time.slice(0, 2)) === h);
+        return `<div class="timeline-row"><time>${pad(h)}:00</time><div class="timeline-slot">${matches
+          .map(
+            e =>
+              `<article class="timeline-event ${e.color}"><span>${e.time}</span><strong>${e.icon} ${safe(e.title)}</strong><small>${safe(
+                e.description || 'Không có mô tả.'
+              )}</small></article>`
+          )
+          .join('')}</div></div>`;
+      })
+      .join('');
+  dayView.innerHTML = `<div class="day-hero">${weekdays[fromKey(dateKey()).getDay()]}, ${pad(state.day)} ${
+    months[state.month]
+  }<strong>Lịch theo thời gian</strong></div><div class="timeline">${items.length ? rows : '<p class="empty">Chưa có công việc trong ngày này.</p>'}</div>`;
+}
+
+function statusOf(event) {
+  if (event.done) return 'completed';
+  return new Date(`${event.date}T${event.time}`) < new Date() ? 'overdue' : 'pending';
+}
+
+function dailyList(title, items, status) {
+  return `<section class="daily-group"><h3><i class="${status}"></i>${title}<span>${items.length}</span></h3>${
+    items.length
+      ? items
+          .map(
+            event =>
+              `<article><span>${event.icon}</span><div><strong>${safe(event.title)}</strong><small>${event.time}</small></div></article>`
+          )
+          .join('')
+      : '<p>Không có công việc.</p>'
+  }</section>`;
+}
+
+function streakCount() {
+  let day = fromKey(dateKey()),
+    count = 0;
+  for (let index = 0; index < 365; index++) {
+    const list = forDate(keyOf(day));
+    if (!list.length || list.some(event => !event.done)) break;
+    count++;
+    day.setDate(day.getDate() - 1);
+  }
+  return count;
+}
+
+function renderProfile() {
+  const today = forDate(dateKey()),
+    completed = today.filter(event => statusOf(event) === 'completed'),
+    pending = today.filter(event => statusOf(event) === 'pending'),
+    overdue = today.filter(event => statusOf(event) === 'overdue'),
+    streak = streakCount();
+  utilityView.innerHTML = `<div class="profile-card"><div class="profile-avatar">NT</div><div><h2>Người dùng</h2><p>Công việc ngày ${pad(
+    state.day
+  )}/${pad(state.month + 1)}</p></div></div><section class="streak-card"><span>🔥</span><div><strong>${streak} ngày chuỗi</strong><p>Hoàn thành tất cả việc trong ngày để duy trì chuỗi.</p></div></section><div class="daily-tasks">${dailyList(
+    'Đã hoàn thành',
+    completed,
+    'completed'
+  )}${dailyList('Chưa hoàn thành', pending, 'pending')}${dailyList('Bị trễ hẹn', overdue, 'overdue')}</div>`;
+}
+
+/* === HÀM HIỆU ỨNG ĐÃ ĐƯỢC CẬP NHẬT TẠI ĐÂY === */
+function statsEffect(percent, total) {
+  document.querySelector('.mood-effect')?.remove();
+  if (!total) return;
+
+  if (percent > 50) {
+    if (typeof confetti === 'function') {
+      // Confetti bay từ dưới đáy màn hình lên và rớt xuống
+      confetti({
+        particleCount: 80,
+        angle: 60,
+        spread: 70,
+        origin: { x: 0.1, y: 1 }, // Bay từ góc dưới bên trái
+        startVelocity: 65,
+        gravity: 0.9
+      });
+      confetti({
+        particleCount: 80,
+        angle: 120,
+        spread: 70,
+        origin: { x: 0.9, y: 1 }, // Bay từ góc dưới bên phải
+        startVelocity: 65,
+        gravity: 0.9
+      });
+    }
+  } else {
+    const effect = document.createElement('div');
+    effect.className = 'mood-effect angry';
+    effect.textContent = '😠';
+    document.body.append(effect);
+    setTimeout(() => effect.remove(), 2000);
+  }
+}
+
+function renderStats(date = dateKey()) {
+  const items = forDate(date),
+    completed = items.filter(event => event.done).length,
+    overdue = 0,
+    pending = items.length - completed,
+    total = items.length,
+    completePercent = total ? Math.round((completed / total) * 100) : 0,
+    pendingPercent = total ? 100 - completePercent : 0,
+    overduePercent = 0,
+    pie = total ? `conic-gradient(#55d0aa 0 ${completePercent}%,#9b7cf7 ${completePercent}% 100%)` : '#e8ecf1';
+  utilityView.innerHTML = `<div class="utility-heading"><p class="eyebrow">THỐNG KÊ TRONG NGÀY</p><h2>Tiến độ công việc</h2></div><label class="stats-date">Chọn ngày <input id="stats-date" type="date" value="${date}"></label><section class="pie-card"><div class="pie-chart" style="background:${pie}"><span>${total}</span><small>công việc</small></div><div class="pie-legend"><p><i class="complete"></i>Đã hoàn thành <b>${completePercent}%</b></p><p><i class="pending"></i>Chưa hoàn thành <b>${pendingPercent}%</b></p><p><i class="overdue"></i>Bị trễ <b>${overduePercent}%</b></p></div></section>`;
+  document.querySelector('#stats-date').onchange = event => renderStats(event.target.value);
+  statsEffect(completePercent, total);
+}
+
+function renderUtility(kind) {
+  navButtons.forEach((button, index) => button.classList.toggle('selected', index === { tasks: 1, stats: 2, profile: 3 }[kind]));
+  viewTabs.classList.toggle('hidden', kind === 'stats' || kind === 'profile');
+  utilityView.classList.remove('hidden');
+  monthView.classList.add('hidden');
+  weekView.classList.add('hidden');
+  dayView.classList.add('hidden');
+  agenda.classList.add('hidden');
+  if (kind === 'stats') {
+    renderStats();
+    return;
+  }
+  if (kind === 'profile') {
+    renderProfile();
+    return;
+  }
+  if (kind === 'tasks') {
+    const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    utilityView.innerHTML = `<div class="utility-heading"><p class="eyebrow">QUẢN LÝ CÁ NHÂN</p><h2>Công việc</h2><span>${
+      sorted.filter(event => event.done).length
+    }/${sorted.length} hoàn thành</span></div><div class="task-list">${
+      sorted.length
+        ? sorted
+            .map(
+              (event, index) =>
+                `<button class="task-card ${event.done ? 'done' : ''}" data-task="${events.indexOf(event)}"><i>${
+                  event.done ? '✓' : ''
+                }</i><div><strong>${event.icon} ${safe(event.title)}</strong><small>${event.time} · ${event.date
+                  .split('-')
+                  .reverse()
+                  .join('/')}</small></div></button>`
+            )
+            .join('')
+        : '<p class="empty">Chưa có công việc. Hãy thêm từ mục Lịch.</p>'
+    }</div>`;
+    utilityView.querySelectorAll('[data-task]').forEach(
+      button =>
+        (button.onclick = () => {
+          events[Number(button.dataset.task)].done = !events[Number(button.dataset.task)].done;
+          renderUtility('tasks');
+        })
+    );
+  }
+}
+
+function setView(view) {
+  state.view = view;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  monthView.classList.toggle('hidden', view !== 'month');
+  weekView.classList.toggle('hidden', view !== 'week');
+  dayView.classList.toggle('hidden', view !== 'day');
+  agenda.classList.toggle('hidden', view === 'week' || view === 'day');
+  if (view === 'list') {
+    document.querySelector('#agenda-heading').textContent = 'Tất cả công việc';
+    document.querySelector('#agenda-date').textContent = `DANH SÁCH ${months[state.month]}`;
+    document.querySelector('#events').innerHTML = eventCards(
+      events
+        .filter(e => e.date.startsWith(`${state.year}-${pad(state.month + 1)}`))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+    );
+  } else {
+    document.querySelector('#agenda-heading').textContent = 'Lịch hôm nay';
+    renderAgenda();
+  }
+  if (view === 'week') renderWeek();
+  if (view === 'day') renderDay();
+}
+
+function select(key) {
+  const d = fromKey(key);
+  state.year = d.getFullYear();
+  state.month = d.getMonth();
+  state.day = d.getDate();
+  renderAll();
+}
+
+function renderAll() {
+  renderCalendar();
+  markHolidays();
+  renderAgenda();
+  renderWeek();
+  renderDay();
+  setView(state.view);
+}
+
+document.querySelectorAll('.tab').forEach(
+  t =>
+    (t.onclick = () => {
+      utilityView.classList.add('hidden');
+      viewTabs.classList.remove('hidden');
+      setView(t.dataset.view);
+    })
+);
+document.querySelector('#previous').onclick = () => {
+  if (--state.month < 0) {
+    state.month = 11;
+    state.year--;
+  }
+  state.day = 1;
+  renderAll();
+};
+document.querySelector('#next').onclick = () => {
+  if (++state.month > 11) {
+    state.month = 0;
+    state.year++;
+  }
+  state.day = 1;
+  renderAll();
+};
+addButton.onclick = () => {
+  document.querySelector('#event-date').value = dateKey();
+  dialog.showModal();
+};
+document.querySelector('#close-dialog').onclick = () => dialog.close();
+document.querySelector('#event-form').onsubmit = e => {
+  e.preventDefault();
+  const title = document.querySelector('#event-name').value.trim(),
+    date = document.querySelector('#event-date').value,
+    time = document.querySelector('#event-time').value,
+    description = document.querySelector('#event-description').value.trim();
+  if (!title || !date || !time) return;
+  events.push({ title, date, time, description, icon: emoji(title, description), color: colors[events.length % colors.length] });
+  dialog.close();
+  e.target.reset();
+  select(date);
+};
+navButtons[0].onclick = () => {
+  utilityView.classList.add('hidden');
+  viewTabs.classList.remove('hidden');
+  setView(state.view);
+  navButtons.forEach((button, index) => button.classList.toggle('selected', index === 0));
+};
+navButtons[1].onclick = () => renderUtility('tasks');
+navButtons[2].onclick = () => renderUtility('stats');
+navButtons[3].onclick = () => renderUtility('profile');
+
+renderAll();
